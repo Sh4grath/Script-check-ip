@@ -1,0 +1,105 @@
+import requests
+from concurrent.futures import ThreadPoolExecutor
+from colorama import Fore, Style, init
+
+# Inicializa colorama
+init(autoreset=True)
+
+# Tu API key de AbuseIPDB
+API_KEY = 'e93cd4e5ae5e370a37551495d47a229a2a6a4cd309495c6ad905488eb5f949f67cab11fb2310cdb8'
+
+# Lista de IPs a analizar en una sola línea
+ips_string = '218.92.0.34, 91.213.99.45'
+
+# Convertir la cadena de IPs en una lista
+ips = [ip.strip() for ip in ips_string.split(',')]
+
+def fetch_ip_info(ip):
+    url = f'https://api.abuseipdb.com/api/v2/check'
+    querystring = {
+        'ipAddress': ip,
+        'maxAgeInDays': '90',
+        'verbose': ''
+    }
+    headers = {
+        'Accept': 'application/json',
+        'Key': API_KEY
+    }
+    response = requests.request(method='GET', url=url, headers=headers, params=querystring)
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f'Error al obtener información para {ip}: {response.status_code}')
+        return None
+
+def main():
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(fetch_ip_info, ips))
+    
+    for result in results:
+        if result:
+            data = result.get('data')
+            if data:
+                ip_address = data.get('ipAddress')
+                abuse_confidence_score = data.get('abuseConfidenceScore')
+                country_code = data.get('countryCode')
+                isp = data.get('isp')
+                usage_type = data.get('usageType')
+                domain = data.get('domain')
+                total_reports = data.get('totalReports')
+                last_reported_at = data.get('lastReportedAt')
+
+                # Determinar el color del Abuse Confidence Score
+                if abuse_confidence_score >= 75:
+                    abuse_confidence_score_text = f"{Fore.RED}Abuse Confidence Score: {abuse_confidence_score}{Style.RESET_ALL}"
+                else:
+                    abuse_confidence_score_text = f"{Fore.YELLOW}Abuse Confidence Score: {abuse_confidence_score}{Style.RESET_ALL}"
+
+                print(f"IP Address: {ip_address}")
+                print(abuse_confidence_score_text)
+                print(f"Country Code: {country_code}")
+                print(f"ISP: {isp}")
+                print(f"Usage Type: {usage_type}")
+                print(f"Domain: {domain}")
+                print(f"Total Reports: {total_reports}")
+                print(f"Last Reported At: {last_reported_at}")
+
+                # Extraer las categorías de los últimos tres reportes
+                recent_reports = data.get('reports', [])[:3]
+                for i, report in enumerate(recent_reports, 1):
+                    categories = report.get('categories', [])
+                    category_names = [get_category_name(cat_id) for cat_id in categories]
+                    print(f"Report {i} Categories: {', '.join(category_names)}")
+
+                print("-" * 40)
+
+def get_category_name(category_id):
+    categories = {
+        3: 'Fraud Orders',
+        4: 'DDoS Attack',
+        5: 'FTP Brute-Force',
+        6: 'Ping of Death',
+        7: 'Phishing',
+        8: 'Fraud VoIP',
+        9: 'Open Proxy',
+        10: 'Web Spam',
+        11: 'Email Spam',
+        12: 'Blog Spam',
+        13: 'VPN IP',
+        14: 'Port Scan',
+        15: 'Hacking',
+        16: 'SQL Injection',
+        17: 'Spoofing',
+        18: 'Brute-Force',
+        19: 'Bad Web Bot',
+        20: 'Exploited Host',
+        21: 'Web App Attack',
+        22: 'SSH',
+        23: 'IoT Targeted'
+    }
+    return categories.get(category_id, 'Unknown')
+
+if __name__ == '__main__':
+    main()
+
